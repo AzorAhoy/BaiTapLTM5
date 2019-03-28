@@ -34,9 +34,17 @@ int main()
 
 	int ret;
 	char buf[256];
+	char id[64];
+	char cmd[64];
+	char tmp[64];
 	//char buf[256];
 	char fileBuf[256];
 	char cmdBuf[256];
+	char targetID[64];
+
+	SOCKET registeredClients[64];
+	int registered = 0;
+	char * ids[64];
 
 	while (true)
 	{
@@ -78,34 +86,6 @@ int main()
 
 				SOCKET client = accept(sockets[i], NULL, NULL);
 
-				ret = recv(client, buf, sizeof(buf), 0);
-				buf[ret] = 0;
-				printf("%s\n", buf);
-				//int found = 0;
-				//FILE *f = fopen("users.txt", "r");
-				//while (fgets(fileBuf, sizeof(fileBuf), f))
-				//{
-				//	printf("%s\n", fileBuf);
-				//	if (strcmp(buf, fileBuf) == 0)
-				//	{
-				//		found = 1;
-				//		break;
-				//	}
-				//}
-				//fclose(f);
-
-				//if (found == 1)
-				//{
-				//	char msg[] = "Dang nhap thanh cong. Hay nhap lenh.\n";
-				//	send(client, msg, strlen(msg), 0);
-				//	break;
-				//}
-				//else
-				//{
-				//	char msg[] = "Dang nhap that bai. Hay thu lai.\n";
-				//	send(client, msg, strlen(msg), 0);
-				//}
-
 				newEvent = WSACreateEvent();
 				WSAEventSelect(client, newEvent, FD_READ | FD_CLOSE);
 
@@ -125,13 +105,85 @@ int main()
 				}
 
 				ret = recv(sockets[i], buf, sizeof(buf), 0);
+				buf[ret] = 0;
 				if (ret <= 0)
 				{
 					printf("FD_READ failed\n");
 					continue;
 				}
 
-				buf[ret] = 0;
+				int j = 0;
+				for (; j < registered; j++) {
+					if (sockets[i] == registeredClients[j])
+						break;
+				}
+				if (j == registered)
+				{
+					// Trang thai chua dang nhap
+					// Kiem tra cu phap client_id: [id]
+					ret = sscanf(buf, "%s %s %s", cmd, id, tmp);
+					if (ret == 2)
+					{
+						int found = 0;
+						FILE *f = fopen("users.txt", "r");
+						while (fgets(fileBuf, sizeof(fileBuf), f))
+						{
+							printf("%s\n", fileBuf);
+							if (strcmp(buf, fileBuf) == 0)
+							{
+								found = 1;
+								break;
+							}
+						}
+						fclose(f);
+
+						if (found == 1)
+						{
+							char msg[] = "Dang nhap thanh cong. Hay nhap lenh.\n";
+							send(sockets[i], msg, strlen(msg), 0);
+							registeredClients[registered] = sockets[i];
+							ids[registered] = (char *)malloc(strlen(id) + 1);
+							memcpy(ids[registered], id, strlen(id) + 1);
+							++registered;
+							break;
+						}
+						else
+						{
+							char msg[] = "Dang nhap that bai. Hay thu lai.\n";
+							send(sockets[i], msg, strlen(msg), 0);
+						}
+						sockets[numEvents] = sockets[i];
+						numEvents++;
+					}
+					else
+					{
+						char msg[] = "Dang nhap that bai. Hay thu lai.\n";
+						send(sockets[i], msg, strlen(msg), 0);
+					}
+
+				}
+				else
+				{
+					// Trang thai da dang nhap
+					
+					if (buf[ret - 1] == '\n')
+					{
+						buf[ret - 1] = 0;
+					}
+					//printf("Received from %d: %s\n", clients[i], buf);
+
+					sprintf(cmdBuf, "%s > out1.txt", buf);
+					system(cmdBuf);
+
+					FILE *f = fopen("out1.txt", "r");
+					while (fgets(fileBuf, sizeof(fileBuf), f))
+					{
+						send(sockets[i], fileBuf, strlen(fileBuf), 0);
+					}
+					fclose(f);
+				}
+
+				
 				printf("Received: %s\n", buf);
 			}
 
